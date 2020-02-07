@@ -11,31 +11,28 @@ from DataGen import DataGen
 
 class AEN(pl.LightningModule):
 
-    def __init__(self, M=16, SNR=7, n_channels=7):
+    def __init__(self, k = 4, SNR=7, n_channels=7):
         super(AEN, self).__init__()
         # self.curve = []
         self.SNR_vec = np.arange(-5, 8, .5)
 
-        self.M = M
-        in_channels = int(np.log2(M))
+        self.M = 2**k
         self.ebno = 10 ** (SNR / 10)
-
-        self.in_channels = in_channels
 
         self.n_channels = n_channels
 
-        self.rate = in_channels / n_channels
+        self.rate = k / n_channels
 
         self.encoder = nn.Sequential(
-            nn.Linear(M, M),
+            nn.Linear(self.M, self.M),
             nn.ReLU(inplace=True),
-            nn.Linear(M, n_channels)
+            nn.Linear(self.M, n_channels)
         )
 
         self.decoder = nn.Sequential(
-            nn.Linear(n_channels, M),
+            nn.Linear(n_channels, self.M),
             nn.ReLU(inplace=True),
-            nn.Linear(M, M)
+            nn.Linear(self.M, self.M)
         )
 
         self.normalization = nn.BatchNorm1d(n_channels)
