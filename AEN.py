@@ -22,6 +22,8 @@ class AEN(pl.LightningModule):
 
         self.in_channels = in_channels
 
+        self.n_channels = n_channels
+
         self.rate = in_channels / n_channels
 
         self.encoder = nn.Sequential(
@@ -49,7 +51,8 @@ class AEN(pl.LightningModule):
 
     def forward(self, inputs, SNR=None):
         x = self.encoder(inputs)
-        x = self.normalization(x)
+        # x = self.normalization(x)
+        x = (self.n_channels ** 0.5) * (x / x.norm(dim=-1)[:, None])
         x = self.AWGN(x, SNR)
         return self.decoder(x)
 
@@ -78,7 +81,7 @@ class AEN(pl.LightningModule):
 
     def test_end(self, outputs):
         outputs_np = np.array([np.array(xi) for xi in outputs])
-        curve = np.mean(outputs_np, 0)
+        curve = np.sum(outputs_np, 0)
         tensorboard_logs = {'test_ber_curve': curve}
         plt.plot(self.SNR_vec, curve)
         plt.yscale("log")
@@ -101,6 +104,6 @@ class AEN(pl.LightningModule):
     @pl.data_loader
     def test_dataloader(self):
         # OPTIONAL
-        self.test_size = 10000
+        self.test_size = 50000
         dataset = DataGen(self.M, self.test_size)
         return DataLoader(dataset, batch_size=32)
