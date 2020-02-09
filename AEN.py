@@ -11,12 +11,14 @@ from DataGen import DataGen
 
 class AEN(pl.LightningModule):
 
-    def __init__(self, k = 4, SNR=7, n_channels=7):
+    def __init__(self, k=4, SNR=7, n_channels=7):
         super(AEN, self).__init__()
         # self.curve = []
         self.SNR_vec = np.arange(-5, 8, .5)
 
-        self.M = 2**k
+        self.k = k
+
+        self.M = 2 ** k
         self.ebno = 10 ** (SNR / 10)
 
         self.n_channels = n_channels
@@ -67,6 +69,8 @@ class AEN(pl.LightningModule):
         x, y = batch
         # snr_dict = {}
         curve = []
+        mod_x = self.encoder(x)
+        mod_x = (self.n_channels ** 0.5) * (mod_x / mod_x.norm(dim=-1)[:, None])
         for idx, SNR in enumerate(self.SNR_vec):
             y_hat = self.forward(x, SNR)
             pred = y_hat.data.numpy()
@@ -74,16 +78,23 @@ class AEN(pl.LightningModule):
             pred_output = np.argmax(pred, 1)
             error_count = (pred_output != label).astype(int).sum()
             curve.append(error_count / self.test_size)
-        return curve
+        return curve, mod_x.data.numpy()
 
     def test_end(self, outputs):
-        outputs_np = np.array([np.array(xi) for xi in outputs])
+        outputs_np = np.array([np.array(xi[0]) for xi in outputs])
+        modx_np = np.array([xi[1] for xi in outputs[:-2]]).reshape([-1, 2])
         curve = np.sum(outputs_np, 0)
         tensorboard_logs = {'test_ber_curve': curve}
         plt.plot(self.SNR_vec, curve)
         plt.yscale("log")
         plt.grid()
         plt.show()
+
+        # plt.scatter(modx_np[:, 0], modx_np[:, 1])
+        # plt.axis((-2.5, 2.5, -2.5, 2.5))
+        # plt.grid()
+        # plt.show()
+
         return {'avg_test_loss': curve, 'log': tensorboard_logs}
 
     def configure_optimizers(self):
@@ -96,11 +107,11 @@ class AEN(pl.LightningModule):
     def train_dataloader(self):
         # REQUIRED
         dataset = DataGen(self.M, 8000)
-        return DataLoader(dataset, batch_size=32)
+        return DataLoader(dataset, batch_size=256)
 
     @pl.data_loader
     def test_dataloader(self):
         # OPTIONAL
-        self.test_size = 50000
+        self.test_size = 100000
         dataset = DataGen(self.M, self.test_size)
-        return DataLoader(dataset, batch_size=32)
+        return DataLoader(dataset, batch_size=1024)
